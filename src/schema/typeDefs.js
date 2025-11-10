@@ -4,39 +4,31 @@ const typeDefs = gql`
   scalar Upload
 
   type Query {
-    # Test
     hello: String
     
-    # RawDataBatch
     rawDataBatches(area: String, status: String): [RawDataBatch]
     rawDataBatch(batchId: ID!): RawDataBatch
     
-    # RadImages
-    radImages(area: String): [RadImage]
+    radImages(area: String, clinicHistoryId: String): [RadImage]
     radImage(id: ID!): RadImage
+    radImagesByClinicHistory(clinicHistoryId: String!): [RadImage]
     
-    # UpperTrain
     upperTrainImages(batchId: String, augmentationType: String): [UpperTrainImage]
     upperTrainImage(id: ID!): UpperTrainImage
     
-    # UpperVal
     upperValImages(batchId: String, augmentationType: String): [UpperValImage]
     upperValImage(id: ID!): UpperValImage
     
-    # LowerTrain
     lowerTrainImages(batchId: String, augmentationType: String): [LowerTrainImage]
     lowerTrainImage(id: ID!): LowerTrainImage
-    
-    # LowerVal  
+     
     lowerValImages(batchId: String, augmentationType: String): [LowerValImage]
     lowerValImage(id: ID!): LowerValImage
   }
 
   type Mutation {
-    # Crear RawDataBatch (automático al subir primera imagen)
     createRawDataBatch(area: String!): RawDataBatch
     
-    # Subir imagen a RadImages y actualizar RawDataBatch
     uploadRadImage(
         fileName: String!      
         imageBase64: String!  
@@ -44,17 +36,20 @@ const typeDefs = gql`
         mimetype: String!     
         area: String!
         annotations: String
+        clinicHistoryId: String  # NUEVO campo opcional
       ): RadImageUploadResult
     
-    # Procesar Data Augmentation y dividir 80/20
+    linkImageToClinicHistory(
+      imageId: ID!
+      clinicHistoryId: String!
+    ): RadImage
+    
     processDataAugmentation(
       batchId: ID!
       area: String!
-      augmentations: [String!]!  # ['rotation', 'flip', etc.]
+      augmentations: [String!]!
     ): DataAugmentationResult
   }
-
-  # TIPOS DE DATOS
 
   type RawDataBatch {
     id: ID!
@@ -76,6 +71,7 @@ const typeDefs = gql`
     mimetype: String!
     size: Int!
     area: String!
+    clinicHistoryId: String  # NUEVO campo
     uploadDate: String!
   }
 
@@ -138,8 +134,6 @@ const typeDefs = gql`
     batchId: ID!
     uploadDate: String!
   }
-
-  # RESULTADOS DE MUTATIONS
 
   type RadImageUploadResult {
     success: Boolean!

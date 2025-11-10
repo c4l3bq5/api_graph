@@ -121,41 +121,66 @@ const resolvers = {
       };
     },
 
-    // RadImages
-radImages: async (_, { area }) => {
-  const filter = area ? { area } : {};
-  const images = await RadImage.find(filter);
-  return images.map(img => {
-    const base64Image = img.image.toString('base64');
-    const base64Mask = img.mask.toString('base64');
-    
-    return {
-      ...img._doc,
-      id: img._id,
-      image: base64Image,
-      imageUrl: `data:${img.mimetype};base64,${base64Image}`,
-      mask: base64Mask,
-      uploadDate: img.uploadDate.toISOString()
-    };
-  });
-},
+    // RadImages - ACTUALIZADAS
+    radImages: async (_, { area, clinicHistoryId }) => {
+      const filter = {};
+      if (area) filter.area = area;
+      if (clinicHistoryId) filter.clinic_history_id = clinicHistoryId;
+      
+      const images = await RadImage.find(filter);
+      return images.map(img => {
+        const base64Image = img.image.toString('base64');
+        const base64Mask = img.mask.toString('base64');
+        
+        return {
+          ...img._doc,
+          id: img._id,
+          image: base64Image,
+          imageUrl: `data:${img.mimetype};base64,${base64Image}`,
+          mask: base64Mask,
+          clinicHistoryId: img.clinic_history_id,
+          uploadDate: img.uploadDate.toISOString()
+        };
+      });
+    },
 
-radImage: async (_, { id }) => {
-  const image = await RadImage.findById(id);
-  if (!image) throw new Error('Imagen no encontrada');
+    radImage: async (_, { id }) => {
+      const image = await RadImage.findById(id);
+      if (!image) throw new Error('Imagen no encontrada');
 
-  const base64Image = image.image.toString('base64');  
-  const base64Mask = image.mask.toString('base64');   
+      const base64Image = image.image.toString('base64');  
+      const base64Mask = image.mask.toString('base64');   
 
-  return {
-    ...image._doc,
-    id: image._id,
-    image: base64Image, 
-    imageUrl: `data:${image.mimetype};base64,${base64Image}`, 
-    mask: base64Mask,   
-    uploadDate: image.uploadDate.toISOString()
-  };
-},
+      return {
+        ...image._doc,
+        id: image._id,
+        image: base64Image, 
+        imageUrl: `data:${image.mimetype};base64,${base64Image}`, 
+        mask: base64Mask,
+        clinicHistoryId: image.clinic_history_id,
+        uploadDate: image.uploadDate.toISOString()
+      };
+    },
+
+    // NUEVA Query - Buscar imágenes por clinic_history_id
+    radImagesByClinicHistory: async (_, { clinicHistoryId }) => {
+      const images = await RadImage.find({ clinic_history_id: clinicHistoryId });
+      
+      return images.map(img => {
+        const base64Image = img.image.toString('base64');
+        const base64Mask = img.mask.toString('base64');
+        
+        return {
+          ...img._doc,
+          id: img._id,
+          image: base64Image,
+          imageUrl: `data:${img.mimetype};base64,${base64Image}`,
+          mask: base64Mask,
+          clinicHistoryId: img.clinic_history_id,
+          uploadDate: img.uploadDate.toISOString()
+        };
+      });
+    },
 
     // RawDataBatch
     rawDataBatches: async (_, { area, status }) => {
@@ -186,9 +211,8 @@ radImage: async (_, { id }) => {
     // Crear RawDataBatch automáticamente
     createRawDataBatch: async (_, { area }) => {
       try {
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const today = new Date().toISOString().split('T')[0];
         
-        // Encontrar el último batch del día
         const lastBatch = await RawDataBatch.findOne({
           batch_id: new RegExp(`^${today}_`)
         }).sort({ batch_id: -1 });
@@ -223,77 +247,106 @@ radImage: async (_, { id }) => {
       }
     },
 
-    // Subir imagen a RadImages y actualizar RawDataBatch
-    uploadRadImage: async (_, { fileName, imageBase64, maskBase64, mimetype, area, annotations }) => {
-  try {
-    // 1. Crear o obtener batch del día
-    const today = new Date().toISOString().split('T')[0];
-    let batch = await RawDataBatch.findOne({
-      batch_id: new RegExp(`^${today}_`),
-      area,
-      status: 'uploaded'
-    });
-    
-    if (!batch) {
-      batch = await resolvers.Mutation.createRawDataBatch(null, { area });
-    }
-    
-    // 2. Convertir Base64 a Buffer (¡FÁCIL!)
-    const imageBuffer = Buffer.from(imageBase64, 'base64');
-    const maskBuffer = Buffer.from(maskBase64, 'base64');
-    
-    // 3. Crear RadImage
-    const newRadImage = new RadImage({
-      fileName: fileName,
-      image: imageBuffer,
-      mask: maskBuffer,
-      annotations,
-      mimetype,
-      size: imageBuffer.length,
-      area,
-      uploadDate: new Date()
-    });
-    
-    const savedRadImage = await newRadImage.save();
-    
-    // 4. Actualizar RawDataBatch
-    batch.radImagesReferences.push(savedRadImage._id);
-    batch.totalImages += 1;
-    await batch.save();
-    
-    // 5. Devolver resultado
-    return {
-      success: true,
-      message: 'Imagen subida correctamente',
-      radImage: {
-        ...savedRadImage._doc,
-        id: savedRadImage._id,
-        image: imageBase64, // Devolver el mismo Base64
-        mask: maskBase64,   // Devolver el mismo Base64
-        uploadDate: savedRadImage.uploadDate.toISOString()
-      },
-      rawDataBatch: {
-        ...batch._doc,
-        id: batch._id,
-        uploadDate: batch.uploadDate.toISOString()
+    // Subir imagen - ACTUALIZADA con clinicHistoryId
+    uploadRadImage: async (_, { fileName, imageBase64, maskBase64, mimetype, area, annotations, clinicHistoryId }) => {
+      try {
+        // 1. Crear o obtener batch del día
+        const today = new Date().toISOString().split('T')[0];
+        let batch = await RawDataBatch.findOne({
+          batch_id: new RegExp(`^${today}_`),
+          area,
+          status: 'uploaded'
+        });
+        
+        if (!batch) {
+          batch = await resolvers.Mutation.createRawDataBatch(null, { area });
+        }
+        
+        // 2. Convertir Base64 a Buffer
+        const imageBuffer = Buffer.from(imageBase64, 'base64');
+        const maskBuffer = Buffer.from(maskBase64, 'base64');
+        
+        // 3. Crear RadImage con clinic_history_id opcional
+        const newRadImage = new RadImage({
+          fileName: fileName,
+          image: imageBuffer,
+          mask: maskBuffer,
+          annotations,
+          mimetype,
+          size: imageBuffer.length,
+          area,
+          clinic_history_id: clinicHistoryId || null,  // NUEVO campo
+          uploadDate: new Date()
+        });
+        
+        const savedRadImage = await newRadImage.save();
+        
+        // 4. Actualizar RawDataBatch
+        batch.radImagesReferences.push(savedRadImage._id);
+        batch.totalImages += 1;
+        await batch.save();
+        
+        // 5. Devolver resultado
+        return {
+          success: true,
+          message: 'Imagen subida correctamente',
+          radImage: {
+            ...savedRadImage._doc,
+            id: savedRadImage._id,
+            image: imageBase64,
+            mask: maskBase64,
+            clinicHistoryId: savedRadImage.clinic_history_id,
+            uploadDate: savedRadImage.uploadDate.toISOString()
+          },
+          rawDataBatch: {
+            ...batch._doc,
+            id: batch._id,
+            uploadDate: batch.uploadDate.toISOString()
+          }
+        };
+        
+      } catch (error) {
+        console.error('Error subiendo imagen:', error);
+        return {
+          success: false,
+          message: 'Error subiendo imagen: ' + error.message,
+          radImage: null,
+          rawDataBatch: null
+        };
       }
-    };
-    
-  } catch (error) {
-    console.error('Error subiendo imagen:', error);
-    return {
-      success: false,
-      message: 'Error subiendo imagen: ' + error.message,
-      radImage: null,
-      rawDataBatch: null
-    };
-  }
-},
+    },
+
+    // NUEVA Mutation - Vincular imagen con historial clínico
+    linkImageToClinicHistory: async (_, { imageId, clinicHistoryId }) => {
+      try {
+        const image = await RadImage.findById(imageId);
+        if (!image) throw new Error('Imagen no encontrada');
+        
+        image.clinic_history_id = clinicHistoryId;
+        await image.save();
+        
+        const base64Image = image.image.toString('base64');
+        const base64Mask = image.mask.toString('base64');
+        
+        return {
+          ...image._doc,
+          id: image._id,
+          image: base64Image,
+          imageUrl: `data:${image.mimetype};base64,${base64Image}`,
+          mask: base64Mask,
+          clinicHistoryId: image.clinic_history_id,
+          uploadDate: image.uploadDate.toISOString()
+        };
+        
+      } catch (error) {
+        console.error('Error vinculando imagen:', error);
+        throw new Error('No se pudo vincular la imagen: ' + error.message);
+      }
+    },
 
     // Procesar Data Augmentation
     processDataAugmentation: async (_, { batchId, area, augmentations }) => {
       try {
-        // 1. Obtener batch y sus imágenes
         const batch = await RawDataBatch.findById(batchId).populate('radImagesReferences');
         if (!batch) throw new Error('Batch no encontrado');
         
@@ -301,25 +354,20 @@ radImage: async (_, { id }) => {
         let valCount = 0;
         const totalProcessed = batch.radImagesReferences.length;
         
-        // 2. Determinar modelos destino
         const TrainModel = area === 'upper' ? UpperTrain : LowerTrain;
         const ValModel = area === 'upper' ? UpperVal : LowerVal;
         
-        // 3. Procesar cada imagen del batch
         for (const radImage of batch.radImagesReferences) {
-          // Aplicar cada tipo de augmentación
           for (let i = 0; i < augmentations.length; i++) {
             const augmentationType = augmentations[i];
             
-            // Determinar si va a train (80%) o val (20%)
             const isTrain = i < augmentations.length * 0.8;
             const Model = isTrain ? TrainModel : ValModel;
             
-            // Crear imagen aumentada
             const augmentedImage = new Model({
               fileName: `aug_${radImage.fileName}_${augmentationType}`,
-              image: radImage.image, // Misma imagen por ahora
-              mask: radImage.mask,   // Misma máscara por ahora
+              image: radImage.image,
+              mask: radImage.mask,
               annotations: radImage.annotations,
               mimetype: radImage.mimetype,
               size: radImage.size,
@@ -337,7 +385,6 @@ radImage: async (_, { id }) => {
           }
         }
         
-        // 4. Actualizar estado del batch
         batch.status = 'completed';
         await batch.save();
         
