@@ -13,6 +13,10 @@ const typeDefs = gql`
     radImage(id: ID!): RadImage
     radImagesByClinicHistory(clinicHistoryId: String!): [RadImage]
     
+    # NUEVOS QUERIES AGREGADOS
+    recentRadImages(limit: Int): [RadImage]
+    allRadImages: [RadImage]
+    
     upperTrainImages(batchId: String, augmentationType: String): [UpperTrainImage]
     upperTrainImage(id: ID!): UpperTrainImage
     
@@ -36,7 +40,7 @@ const typeDefs = gql`
         mimetype: String!     
         area: String!
         annotations: String
-        clinicHistoryId: String  # NUEVO campo opcional
+        clinicHistoryId: String
       ): RadImageUploadResult
     
     linkImageToClinicHistory(
@@ -71,7 +75,7 @@ const typeDefs = gql`
     mimetype: String!
     size: Int!
     area: String!
-    clinicHistoryId: String  # NUEVO campo
+    clinicHistoryId: String
     uploadDate: String!
   }
 

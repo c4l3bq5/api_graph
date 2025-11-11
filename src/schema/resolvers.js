@@ -121,7 +121,7 @@ const resolvers = {
       };
     },
 
-    // RadImages - ACTUALIZADAS
+    // RadImages
     radImages: async (_, { area, clinicHistoryId }) => {
       const filter = {};
       if (area) filter.area = area;
@@ -162,9 +162,51 @@ const resolvers = {
       };
     },
 
-    // NUEVA Query - Buscar imágenes por clinic_history_id
+    // Buscar imágenes por clinic_history_id
     radImagesByClinicHistory: async (_, { clinicHistoryId }) => {
       const images = await RadImage.find({ clinic_history_id: clinicHistoryId });
+      
+      return images.map(img => {
+        const base64Image = img.image.toString('base64');
+        const base64Mask = img.mask.toString('base64');
+        
+        return {
+          ...img._doc,
+          id: img._id,
+          image: base64Image,
+          imageUrl: `data:${img.mimetype};base64,${base64Image}`,
+          mask: base64Mask,
+          clinicHistoryId: img.clinic_history_id,
+          uploadDate: img.uploadDate.toISOString()
+        };
+      });
+    },
+
+    // NUEVO: Obtener imágenes recientes con límite
+    recentRadImages: async (_, { limit = 10 }) => {
+      const images = await RadImage.find()
+        .sort({ uploadDate: -1 })  // Ordenar por fecha descendente
+        .limit(limit);
+      
+      return images.map(img => {
+        const base64Image = img.image.toString('base64');
+        const base64Mask = img.mask.toString('base64');
+        
+        return {
+          ...img._doc,
+          id: img._id,
+          image: base64Image,
+          imageUrl: `data:${img.mimetype};base64,${base64Image}`,
+          mask: base64Mask,
+          clinicHistoryId: img.clinic_history_id,
+          uploadDate: img.uploadDate.toISOString()
+        };
+      });
+    },
+
+    // NUEVO: Obtener todas las imágenes
+    allRadImages: async () => {
+      const images = await RadImage.find().sort({ uploadDate: -1 });
       
       return images.map(img => {
         const base64Image = img.image.toString('base64');
@@ -247,7 +289,7 @@ const resolvers = {
       }
     },
 
-    // Subir imagen - ACTUALIZADA con clinicHistoryId
+    // Subir imagen
     uploadRadImage: async (_, { fileName, imageBase64, maskBase64, mimetype, area, annotations, clinicHistoryId }) => {
       try {
         // 1. Crear o obtener batch del día
@@ -275,7 +317,7 @@ const resolvers = {
           mimetype,
           size: imageBuffer.length,
           area,
-          clinic_history_id: clinicHistoryId || null,  // NUEVO campo
+          clinic_history_id: clinicHistoryId || null,
           uploadDate: new Date()
         });
         
@@ -316,7 +358,7 @@ const resolvers = {
       }
     },
 
-    // NUEVA Mutation - Vincular imagen con historial clínico
+    // Vincular imagen con historial clínico
     linkImageToClinicHistory: async (_, { imageId, clinicHistoryId }) => {
       try {
         const image = await RadImage.findById(imageId);
